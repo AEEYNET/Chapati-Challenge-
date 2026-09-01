@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Update Chapati Count — Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:wght@600&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --green-dark:#2E2018;
+    --cream:#F6EEDF;
+    --gold:#C89B3C;
+    --clay:#6E3B23;
+    --text-body:#2A2018;
+    --line:rgba(46,32,24,0.15);
+  }
+  *{box-sizing:border-box;}
+  body{
+    font-family:'Inter', sans-serif;
+    background:var(--cream);
+    color:var(--text-body);
+    display:flex; align-items:center; justify-content:center;
+    min-height:100vh; margin:0; padding:24px;
+  }
+  .card{
+    background:#fff; border:1px solid var(--line); border-radius:6px;
+    padding:36px; max-width:420px; width:100%;
+  }
+  h1{ font-family:'Fraunces', serif; font-size:1.4rem; margin:0 0 6px; color:var(--green-dark); }
+  p.sub{ font-size:0.9rem; color:#6b5f4f; margin:0 0 28px; }
+  label{ display:block; font-size:0.85rem; font-weight:600; margin-bottom:6px; margin-top:18px; }
+  input{
+    width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:4px;
+    font-size:1rem; font-family:'Inter';
+  }
+  button{
+    width:100%; margin-top:26px; padding:14px; border:none; border-radius:4px;
+    background:var(--clay); color:#fff; font-weight:700; font-size:1rem; cursor:pointer;
+  }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  .status{ margin-top:16px; font-size:0.9rem; padding:12px; border-radius:4px; display:none; }
+  .status.ok{ display:block; background:#E7F3E4; color:#2E5E22; }
+  .status.err{ display:block; background:#FBE7E3; color:#8A2E1C; }
+  .current{ font-size:0.85rem; color:#6b5f4f; margin-top:6px; }
+  .setup{ font-size:0.8rem; color:#8a7c66; margin-top:24px; line-height:1.5; }
+  .setup a{ color:var(--clay); }
+  details{ margin-top:20px; font-size:0.85rem; }
+  summary{ cursor:pointer; color:var(--clay); font-weight:600; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <h1>Update chapati count</h1>
+    <p class="sub">This page updates the live counter on your fundraising site. Keep this link private.</p>
+
+    <div class="current" id="currentDisplay">Current count: loading…</div>
+
+    <label for="newCount">New total chapatis funded</label>
+    <input type="number" id="newCount" min="0" max="1000" placeholder="e.g. 215">
+
+    <button id="saveBtn">Save update</button>
+    <div class="status" id="status"></div>
+
+    <details>
+      <summary>First-time setup (GitHub token)</summary>
+      <div class="setup">
+        This page needs a GitHub Personal Access Token to save changes to your repo — it's stored only in your browser, never sent anywhere except GitHub.
+        <br><br>
+        <strong>How to create one:</strong><br>
+        1. Go to <a href="https://github.com/settings/tokens?type=beta" target="_blank">github.com/settings/tokens?type=beta</a><br>
+        2. Click "Generate new token"<br>
+        3. Name it "Chapati counter", set expiration (e.g. 90 days)<br>
+        4. Under "Repository access", select "Only select repositories" → choose <strong>Chapati-Challenge-</strong><br>
+        5. Under "Permissions" → "Repository permissions" → set <strong>Contents</strong> to "Read and write"<br>
+        6. Click "Generate token" and copy it<br>
+        7. Paste it below once, then click Save — this browser will remember it
+        <br><br>
+        <label for="tokenInput">GitHub token</label>
+        <input type="password" id="tokenInput" placeholder="ghp_...">
+        <button id="saveTokenBtn" style="margin-top:12px;">Save token to this browser</button>
+      </div>
+    </details>
+  </div>
+
+<script>
+  const OWNER = 'aeeynet';
+  const REPO = 'Chapati-Challenge-';
+  const FILE_PATH = 'data.json';
+  const BRANCH = 'main';
+
+  const tokenInput = document.getElementById('tokenInput');
+  const saveTokenBtn = document.getElementById('saveTokenBtn');
+  const newCountInput = document.getElementById('newCount');
+  const saveBtn = document.getElementById('saveBtn');
+  const statusEl = document.getElementById('status');
+  const currentDisplay = document.getElementById('currentDisplay');
+
+  // Load saved token into the field (masked) if present
+  const savedToken = localStorage.getItem('chapati_gh_token');
+  if(savedToken){ tokenInput.value = savedToken; }
+
+  saveTokenBtn.addEventListener('click', () => {
+    const t = tokenInput.value.trim();
+    if(!t){ showStatus('Paste a token first.', 'err'); return; }
+    localStorage.setItem('chapati_gh_token', t);
+    showStatus('Token saved to this browser.', 'ok');
+  });
+
+  function showStatus(msg, type){
+    statusEl.textContent = msg;
+    statusEl.className = 'status ' + type;
+  }
+
+  function getToken(){
+    return localStorage.getItem('chapati_gh_token') || tokenInput.value.trim();
+  }
+
+  async function fetchCurrent(){
+    try{
+      const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${BRANCH}`, {
+        headers:{ 'Accept':'application/vnd.github+json' }
+      });
+      const data = await res.json();
+      const decoded = JSON.parse(atob(data.content));
+      currentDisplay.textContent = `Current count: ${decoded.count} of 1,000`;
+      newCountInput.value = decoded.count;
+      return { count: decoded.count, sha: data.sha };
+    }catch(e){
+      currentDisplay.textContent = 'Could not load current count.';
+      return null;
+    }
+  }
+
+  fetchCurrent();
+
+  saveBtn.addEventListener('click', async () => {
+    const token = getToken();
+    if(!token){
+      showStatus('Add your GitHub token in "First-time setup" below first.', 'err');
+      return;
+    }
+    const newVal = parseInt(newCountInput.value, 10);
+    if(isNaN(newVal) || newVal < 0 || newVal > 1000){
+      showStatus('Enter a number between 0 and 1000.', 'err');
+      return;
+    }
+
+    saveBtn.disabled = true;
+    showStatus('Saving…', 'ok');
+
+    try{
+      // Get current file SHA (required by GitHub API to update a file)
+      const getRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}?ref=${BRANCH}`, {
+        headers:{ 'Accept':'application/vnd.github+json', 'Authorization': `Bearer ${token}` }
+      });
+      if(!getRes.ok) throw new Error('Could not read current file — check your token permissions.');
+      const fileData = await getRes.json();
+
+      const newContent = JSON.stringify({ count: newVal, updated: new Date().toISOString() }, null, 2);
+      const encoded = btoa(newContent);
+
+      const putRes = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}`, {
+        method:'PUT',
+        headers:{
+          'Accept':'application/vnd.github+json',
+          'Authorization': `Bearer ${token}`,
+          'Content-Type':'application/json'
+        },
+        body: JSON.stringify({
+          message: `Update chapati count to ${newVal}`,
+          content: encoded,
+          sha: fileData.sha,
+          branch: BRANCH
+        })
+      });
+
+      if(!putRes.ok){
+        const err = await putRes.json();
+        throw new Error(err.message || 'Update failed.');
+      }
+
+      showStatus(`Saved! Count is now ${newVal}. Give the live site a minute to refresh.`, 'ok');
+      currentDisplay.textContent = `Current count: ${newVal} of 1,000`;
+    }catch(e){
+      showStatus('Error: ' + e.message, 'err');
+    }finally{
+      saveBtn.disabled = false;
+    }
+  });
+</script>
+</body>
+</html>
