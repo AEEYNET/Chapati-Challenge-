@@ -10,14 +10,14 @@
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --green-dark:#1F3A2E;
-    --green-deep:#16291F;
-    --cream:#FAF3E7;
-    --gold:#D9A441;
-    --clay:#B5533C;
-    --text-on-dark:#F5F1E8;
-    --text-body:#2B2A25;
-    --line:rgba(31,58,46,0.15);
+    --green-dark:#2E2018;
+    --green-deep:#1B120C;
+    --cream:#F6EEDF;
+    --gold:#C89B3C;
+    --clay:#6E3B23;
+    --text-on-dark:#F5EFE5;
+    --text-body:#2A2018;
+    --line:rgba(46,32,24,0.15);
   }
   *{box-sizing:border-box; margin:0; padding:0;}
   html{scroll-behavior:smooth;}
@@ -284,6 +284,7 @@
       </div>
     </div>
     <p class="progress-caption">Working budget: <strong>KES 20,000</strong> · Cost per chapati: <strong>KES 20</strong></p>
+    <p class="progress-caption" id="lastUpdated" style="margin-top:6px; font-size:0.85rem; opacity:0.75;"></p>
   </div>
 </section>
 
@@ -390,8 +391,7 @@
 </footer>
 
 <script>
-  // Chapati counter — set startCount to reflect real progress; update manually as donations come in.
-  const startCount = 0;
+  // Chapati counter — reads live count from data.json (updated via update.html)
   const target = 1000;
   const circumference = 2 * Math.PI * 100;
   const fillEl = document.getElementById('rotiFill');
@@ -403,7 +403,28 @@
     fillEl.style.strokeDashoffset = circumference * (1 - pct);
     countEl.textContent = n;
   }
-  window.addEventListener('load', () => renderCount(startCount));
+
+  async function loadCount(){
+    try{
+      const res = await fetch('data.json?t=' + Date.now()); // cache-bust so updates show immediately
+      const data = await res.json();
+      renderCount(data.count || 0);
+      renderUpdated(data.updated);
+    }catch(e){
+      renderCount(0); // fallback if data.json hasn't loaded yet
+    }
+  }
+
+  function renderUpdated(iso){
+    const el = document.getElementById('lastUpdated');
+    if(!iso){ el.textContent = ''; return; }
+    const d = new Date(iso);
+    if(isNaN(d)){ el.textContent = ''; return; }
+    const formatted = d.toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' }) +
+      ', ' + d.toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
+    el.textContent = `Last updated ${formatted}`;
+  }
+  window.addEventListener('load', loadCount);
 
   // Chip selection (visual only — links through to payment box)
   document.querySelectorAll('.chip').forEach(chip => {
